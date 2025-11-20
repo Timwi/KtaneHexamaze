@@ -38,6 +38,8 @@ public class HexamazeModule : MonoBehaviour
     private bool _isSolved;
     private bool _animating;
     private bool _colorblind;
+    private readonly List<GameObject> _markingObjs = new List<GameObject>();
+    private readonly List<HexamazeMarking> _hexamazeMarkings = new List<HexamazeMarking>();
 
     private static readonly Dictionary<int, GeneratedMaze> _seededRules = new Dictionary<int, GeneratedMaze> { { 1, GeneratedMaze.Default } };
 
@@ -50,6 +52,25 @@ public class HexamazeModule : MonoBehaviour
         public bool IsSolve;
         public Hex Destination;
         public Action Action;
+    }
+
+    public struct HexamazeMarking
+    {
+        Marking Shape;
+        int QPosition;
+        int RPosition;
+
+        public HexamazeMarking(Marking s, int q, int r)
+        {
+            Shape = s;
+            QPosition = q;
+            RPosition = r;
+        }
+
+        public override string ToString()
+        {
+            return string.Format("HexamazeMarking: Shape = {0}, (Q, R) = ({1}, {2})", Shape, QPosition, RPosition);
+        }
     }
 
     void Start()
@@ -149,8 +170,12 @@ public class HexamazeModule : MonoBehaviour
             var origMarking = _maze.GetMarking(globalHex);
             var rotMarking = origMarking.Rotate(_submazeRotation);
             if (rotMarking != Marking.None)
+            {
+                var hm = new HexamazeMarking(rotMarking, hex.Q, hex.R);
+                _hexamazeMarkings.Add(hm);
                 Debug.LogFormat("[Hexamaze #{4}] Marking at {0} (screen)/{1} (maze): {2}, after rotation: {3}", hex.ConvertCoordinates(4), globalHex.ConvertCoordinates(12), origMarking, rotMarking, _moduleId);
-            CreateGraphic("Marking " + hex, hex.GetCenter(1, 1e-4f), MarkingTextures.First(tx => tx.name == rotMarking.ToString()));
+                CreateGraphic("Marking " + hex, hex.GetCenter(1, 1e-4f), MarkingTextures.First(tx => tx.name == rotMarking.ToString()));
+            }
         }
     }
 
@@ -219,6 +244,7 @@ public class HexamazeModule : MonoBehaviour
         var mr = go.AddComponent<MeshRenderer>();
         mr.material.mainTexture = tex;
         mr.material.shader = Shader.Find("Unlit/Transparent");
+        _markingObjs.Add(go);
     }
 
     enum ButtonResult { None, Strike, Solve };
@@ -283,6 +309,7 @@ public class HexamazeModule : MonoBehaviour
                         Pawn.gameObject.SetActive(false);
                         ColorblindIndicator.gameObject.SetActive(false);
                         Module.HandlePass();
+                        StartCoroutine(ShrinkMarkings());
                         Audio.PlaySoundAtTransform(Rnd.Range(0, 100) == 0 ? "Hexamaze-solve-sound2" : "Hexamaze-solve-sound", transform);
                     }
                 });
@@ -335,6 +362,26 @@ public class HexamazeModule : MonoBehaviour
         hs.Add(n);
     }
 
+    private IEnumerator ShrinkMarkings()
+    {
+        for (int i = 0; i < _markingObjs.Count; i++)
+        {
+            StartCoroutine(shrinkObj(_markingObjs[i]));
+            yield return new WaitForSeconds(0.05f);
+        }
+    }
+    
+    private IEnumerator shrinkObj(GameObject obj)
+    {
+        var duration = 0.15f;
+        var elapsed = 0f;
+        while (elapsed < duration)
+        {
+            obj.transform.localScale = new Vector3(Mathf.Lerp(0.1f, 0f, elapsed / duration), Mathf.Lerp(0.1f, 0f, elapsed / duration), Mathf.Lerp(0.1f, 0f, elapsed / duration));
+            yield return null;
+            elapsed += Time.deltaTime;
+        }
+    }
 #pragma warning disable 414
     private readonly string TwitchHelpMessage = "!{0} 12 2 6 4 8 [movements as clockface] | !{0} n ne s se sw [movements as cardinal] | !{0} up upright down downright downleft [movements as directions] | !{0} colorblind";
 #pragma warning restore 414
